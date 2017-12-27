@@ -49,7 +49,7 @@ class client_core
 
 client_core::client_core(void)
 {
-  this->servInetAddr = "127.0.0.1";
+  this->servInetAddr = "101.6.59.208";
 };
 
 int client_core::fd_connect()

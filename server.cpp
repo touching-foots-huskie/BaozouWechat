@@ -12,6 +12,7 @@
 using namespace std;
 
 //define the core class in server:
+//server is used in 101.6.59.208
 class server_core
 {
   public: 
@@ -49,7 +50,7 @@ class server_core
 
 server_core::server_core(void)
 {
-  this->servInetAddr = "127.0.0.1";
+  this->servInetAddr = "101.6.161.78";
 };
 
 int server_core::fd_connect()

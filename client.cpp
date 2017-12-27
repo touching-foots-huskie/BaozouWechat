@@ -54,11 +54,12 @@ client_core::client_core(void)
 
 int client_core::fd_connect()
 {
+  // sending port using 10003
   this->socketfd = socket(AF_INET, SOCK_STREAM, 0);
     
   memset(&this->sockaddr, 0, sizeof(this->sockaddr));
   this->sockaddr.sin_family = AF_INET;
-  this->sockaddr.sin_port = htons(10004);
+  this->sockaddr.sin_port = htons(10003);
   
   // presentation to number
   inet_pton(AF_INET, this->servInetAddr, &this->sockaddr.sin_addr);
@@ -90,7 +91,9 @@ int client_core::send_packet(FILE* stream, int size)
     exit(0);
   }
   // close the target socket id 
- this->fd_close(); 
+  printf("finish sending! \n");
+  this->fd_close();
+  return 0; 
 };
 
 int client_core::fd_close()
@@ -99,7 +102,7 @@ int client_core::fd_close()
   return 0;
 };
 
-// listen part:
+// listen
 int client_core::fd_listen()
 {
   memset(&this->socklisten, 0, sizeof(this->socklisten));
@@ -132,11 +135,11 @@ int client_core::packet_catch()
   connfd = accept(this->listenfd, (struct sockaddr*) NULL, NULL);
   
   //error:
+
   if(connfd==-1)
   {
     printf("accept socket error: %s errno :%d\n", strerror(errno), errno);
   }
-
   n = recv(connfd, this->recvline, MAXLINE, 0);
   this->recvline[n] = '\0';
   printf("recv msg from client: %s", this->recvline);
@@ -145,12 +148,14 @@ int client_core::packet_catch()
 
 int main(int argc, char **argv)
 {
+  //echo test:
   // client1 is used to send msg:  
   client_core test;
+  test.fd_listen();
+  // printf("start listen!\n");
+  test.packet_catch();
   test.send_packet(stdin, 1024);
-  test.send_packet(stdin, 1024);
-  //test.fd_listen();
-  //test.fd_listen_close();
+  test.fd_listen_close();
 }
 
 

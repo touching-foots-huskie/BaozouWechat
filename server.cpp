@@ -12,7 +12,7 @@
 using namespace std;
 
 //define the core class in server:
-class client_core
+class server_core
 {
   public: 
     const char* servInetAddr;  // address of the server
@@ -42,17 +42,17 @@ class client_core
     int packet_catch(); // catch a packet
     int fd_listen_close();
     //functions: Constructor:
-    client_core();
+    server_core();
 
     //Other funcitons:
 };
 
-client_core::client_core(void)
+server_core::server_core(void)
 {
   this->servInetAddr = "127.0.0.1";
 };
 
-int client_core::fd_connect()
+int server_core::fd_connect()
 {
   this->socketfd = socket(AF_INET, SOCK_STREAM, 0);
     
@@ -75,7 +75,7 @@ int client_core::fd_connect()
 
 };
 
-int client_core::send_packet(FILE* stream, int size)
+int server_core::send_packet(FILE* stream, int size)
 {
   // connect first
   this->fd_connect();
@@ -93,19 +93,19 @@ int client_core::send_packet(FILE* stream, int size)
  this->fd_close(); 
 };
 
-int client_core::fd_close()
+int server_core::fd_close()
 {
   close(this->socketfd);
   return 0;
 };
 
 // listen part:
-int client_core::fd_listen()
+int server_core::fd_listen()
 {
   memset(&this->socklisten, 0, sizeof(this->socklisten));
   this->socklisten.sin_family = AF_INET;
   this->socklisten.sin_addr.s_addr = htonl(INADDR_ANY);
-  this->socklisten.sin_port = htons(10004);
+  this->socklisten.sin_port = htons(10003);
 
   this->listenfd= socket(AF_INET, SOCK_STREAM, 0);
 
@@ -116,12 +116,12 @@ int client_core::fd_listen()
   printf("Begin listening.\n");
 }
 
-int client_core::fd_listen_close()
+int server_core::fd_listen_close()
 {
   close(this->listenfd);
 }
 
-int client_core::packet_catch()
+int server_core::packet_catch()
 {
   //this function is catching for one time
   //initial:
@@ -139,19 +139,16 @@ int client_core::packet_catch()
 
   n = recv(connfd, this->recvline, MAXLINE, 0);
   this->recvline[n] = '\0';
-  printf("recv msg from client: %s", this->recvline);
+  printf("recv msg from server: %s", this->recvline);
   close(connfd);
 }
 
 int main(int argc, char **argv)
 {
 
-  client_core test;
-  //test.send_packet(stdin, 1024);
-  //test.send_packet(stdin, 1024);
+  server_core test;
   test.fd_listen();
-  test.packet_catch();
-  sleep(5);
+  test.send_packet(stdin, 1024);
   test.packet_catch();
   test.fd_listen_close();
 }

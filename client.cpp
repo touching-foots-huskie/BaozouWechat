@@ -8,9 +8,13 @@
 # include <unistd.h>
 # include "entry.h"
 # include <iostream>
+# include <map>
+# include <boost/algorithm/string.hpp> 
+
 # define MAXLINE 1024
 
 using namespace std;
+using namespace boost;
 
 //define the core class in server:
 class client_core
@@ -18,6 +22,10 @@ class client_core
   public:
     const char* servInetAddr;  // address of the server
     int userId;
+    string name;
+    //friend list:
+    map<string, int> friend_list;
+    map<int, string> iv_friend_list;
     // socket address is a address
     struct sockaddr_in sockaddr;       //socket address
     struct sockaddr_in socklisten;  //listen address
@@ -34,7 +42,7 @@ class client_core
 
     // save buffer:
     char recvline[MAXLINE], sendline[MAXLINE];
-    char content[148];
+    char content[164];
     // for sending
     int fd_connect();
     int send_packet(char* stream);
@@ -49,6 +57,8 @@ class client_core
 
     //Other functions:
     char* loginWrap();
+    char* sendMsg();
+    char* logoutWrap();
 };
 
 client_core::client_core(void)
@@ -56,6 +66,12 @@ client_core::client_core(void)
   this->MynetAddr = "101.6.161.78";
   this->servInetAddr = "101.6.161.78";
   this->userId = 255; //I know
+  this->name = "chn";
+  // add friend list:
+  this->friend_list["otc"] = 100; //only using one friend.
+  this->friend_list["chn"] = 255; //only using one friend.
+  this->iv_friend_list[100] = "otc";
+  this->iv_friend_list[255] = "chn";
 };
 
 int client_core::fd_connect()
@@ -91,9 +107,7 @@ int client_core::send_packet(char* this_info)
   //copy the content:
   //strcpy(this->sendline, this_info);
 
-  printf("this info is %s", this_info);
-  int actual_len = send(this->socketfd, this_info, 148, 0);
-  printf("al: %d\n", actual_len);
+  int actual_len = send(this->socketfd, this_info, 164, 0);
   if(actual_len < 0)
   {
     //error no:
@@ -151,10 +165,11 @@ int client_core::packet_catch()
     printf("accept socket error: %s errno :%d\n", strerror(errno), errno);
   }
   n = recv(connfd, this->recvline, MAXLINE, 0);
-  printf("N is %d\n", n);
   this->recvline[n] = '\0';
-  entry* Entry = (entry*) recvline;
-
+  entry* Entry = (entry*) this->recvline;
+  
+  cout<<"msg from:"<< this->iv_friend_list[Entry->EntryHead.userId]<<endl;
+  printf("%s", Entry->data);
   close(connfd);
   return 0;
 }
@@ -163,24 +178,77 @@ int client_core::packet_catch()
 
 char* client_core::loginWrap()
 {
+
+  printf("Your ID:\n");
+  char id[20];
+  char kw[20];
+  int myid;
+  int mykw;
+  fgets(id, 1024, stdin);
+  //int ID = (int)id;
+  //printf("%d\n", atoi(id));
+  myid = atoi(id);
+  printf("Your Keyword:\n");
+  fgets(kw, 1024, stdin);
+  mykw = atoi(kw);
+  // add into ad part:
   entry Entry = wrap_info(this->MynetAddr, this->userId, 0);
-  memset(this->content, '0', 148);
-  memcpy(this->content, &Entry, 148);
+  Entry.EntryHead.Ad1 = myid;
+  Entry.EntryHead.Ad2 = mykw;
+  memset(this->content, '0', 164);
+  memcpy(this->content, &Entry, 164);
   return this->content;
 }
 
+char* client_core::sendMsg()
+{
+  //enter from stdin:
+  char name[1024];
+  printf("you want to send to whom?\n");
+  fgets(name, 1024, stdin);
+  string s = string(name);
+  trim(s);
+  int toWhom = this->friend_list[s];
+  printf("Id is %d\n", toWhom);
+  printf("write what you want to say:\n");
+  fgets(this->sendline, 1024, stdin);
+  printf("%s", this->sendline);
+  entry Entry = wrap_info(this->sendline, this->userId, 1);
+  Entry.EntryHead.towhom = toWhom;
+  memset(this->content, '0', 164);
+  memcpy(this->content, &Entry, 164);
+  return this->content;
+}
+
+char* client_core::logoutWrap()
+{
+  char infos[] = "Logging out\n";
+  entry Entry = wrap_info(infos, this->userId, 2);
+  memset(this->content, '0', 164);
+  memcpy(this->content, &Entry, 164);
+  return this->content;
+}
 
 int main(int argc, char **argv)
 {
-
   client_core test;
-  char* test_data = test.loginWrap();
-  test.send_packet(test_data);
+  //login first:
+  char* login_data = test.loginWrap();
+  test.send_packet(login_data);
 
-  /*
+  
+  char* msg_data = test.sendMsg();
+  test.send_packet(msg_data);
+  
+  // listen to the response:
   test.fd_listen();
   test.packet_catch();
   test.fd_listen_close();
-  */
-  }
+  
+  //logout:
+  char* logout_data = test.logoutWrap();
+  test.send_packet(logout_data);
+  
+}
+
 

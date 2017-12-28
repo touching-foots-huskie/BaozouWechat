@@ -1,5 +1,5 @@
 # depslib dependency file v1.0
-1514442476 source:/mnt/storage/codes/Harvey/BaozouWechat/client.cpp
+1514446849 source:/mnt/storage/codes/Harvey/BaozouWechat/client.cpp
 	<stdio.h>
 	<sys/socket.h>
 	<stdlib.h>
@@ -10,6 +10,7 @@
 	<unistd.h>
 	"entry.h"
 	<iostream>
+	<map>
 
 1514441492 /mnt/storage/codes/Harvey/BaozouWechat/entry.h
 	<string>

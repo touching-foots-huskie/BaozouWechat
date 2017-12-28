@@ -24,6 +24,10 @@ struct entry_head
    */
   int userId;
   // userId is a 8-bit number, for we only have a limited users
+  int towhom;
+  int Ad1;  //additional data:
+  int Ad2;
+  int Ad3;
 };
 
 struct entry

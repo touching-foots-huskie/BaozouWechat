@@ -6,7 +6,10 @@
 # include <string.h>
 # include <arpa/inet.h>
 # include <unistd.h>
+# include <map>
+# include "entry.h"
 
+# include <iostream>
 # define MAXLINE 1024
 
 using namespace std;
@@ -15,7 +18,7 @@ using namespace std;
 //server is used in 101.6.59.208
 class server_core
 {
-  public: 
+  public:
     const char* servInetAddr;  // address of the server
     // socket address is a address
     struct sockaddr_in sockaddr;       //socket adress
@@ -33,19 +36,23 @@ class server_core
     // save buffer:
     char recvline[MAXLINE], sendline[MAXLINE];
 
+    //map: userId->Ip:
+    map<int, char*> userIp;
     // for sending
     int fd_connect();
     int send_packet(FILE* stream, int size=1024);
     int fd_close();
 
-    // for recieving:
+    // for receiving:
     int fd_listen();
     int packet_catch(); // catch a packet
     int fd_listen_close();
     //functions: Constructor:
     server_core();
 
-    //Other funcitons:
+    //Other functions:
+    void show_status(); 
+    int login_process(entry* Entry);
 };
 
 server_core::server_core(void)
@@ -56,18 +63,18 @@ server_core::server_core(void)
 int server_core::fd_connect()
 {
   this->socketfd = socket(AF_INET, SOCK_STREAM, 0);
-    
+
   memset(&this->sockaddr, 0, sizeof(this->sockaddr));
   this->sockaddr.sin_family = AF_INET;
   this->sockaddr.sin_port = htons(10004);
-  
+
   // presentation to number
   inet_pton(AF_INET, this->servInetAddr, &this->sockaddr.sin_addr);
 
   // connect is used to connect the local and TCP server.
   // first make connection
   this->condition = (connect(this->socketfd, (struct sockaddr*) &this->sockaddr, sizeof(this->sockaddr)));
-  
+
   if(this->condition<0)
   {
     printf("connect error %s errno: %d\n", strerror(errno), errno);
@@ -84,14 +91,14 @@ int server_core::send_packet(FILE* stream, int size)
 
   fgets(this->sendline, size, stream);
 
-  if((send(this->socketfd, this->sendline, strlen(this->sendline), 0)) < 0)
+  if((send(this->socketfd, this->sendline, 20, 0)) < 0)
   {
     //error no:
     printf("send mes error: %s eerno: %d", strerror(errno), errno);
     exit(0);
   }
-  // close the target socket id 
- this->fd_close(); 
+  // close the target socket id
+ this->fd_close();
 };
 
 int server_core::fd_close()
@@ -129,9 +136,9 @@ int server_core::packet_catch()
   int confd;
   int n;  //the length of the actual content
   //begin catching packet:
-  
+
   connfd = accept(this->listenfd, (struct sockaddr*) NULL, NULL);
-  
+
   //error:
   if(connfd==-1)
   {
@@ -139,19 +146,63 @@ int server_core::packet_catch()
   }
 
   n = recv(connfd, this->recvline, MAXLINE, 0);
-  this->recvline[n] = '\0';
-  printf("recv msg from server: %s", this->recvline);
   close(connfd);
+
+  //data process
+  this->recvline[n] = '\0';
+  
+  entry* Entry = (entry*) recvline;
+  if(Entry->EntryHead.etype == 0)
+  {
+    this->login_process(Entry);
+  }
+  else if(Entry->EntryHead.etype == 1)
+  {
+    printf("recieved msg\n"); 
+  }
+  else if(Entry->EntryHead.etype == 2)
+  {
+    printf("recieved logout\n");
+  }
+  else
+  {
+    printf("No such etype\n");
+    exit(0);
+  }
+
+}
+
+void server_core::show_status()
+{
+  printf("I am going to show the status of users.\n");
+  map<int, char*>::iterator iter;
+  for(iter=this->userIp.begin(); iter!=this->userIp.end(); iter++)
+  {
+    printf("Id: %d|%s\n", iter->first, iter->second);
+  }
+}
+
+//login process:
+int server_core::login_process(entry* Entry)
+{
+  // this function is used to process the login function:
+  // response: Login sucess
+  printf("recieved login\n"); 
+  this->userIp[Entry->EntryHead.userId] = Entry->data;
+  printf("content is %s\n", Entry->data);
 }
 
 int main(int argc, char **argv)
 {
 
   server_core test;
+
   test.fd_listen();
-  test.send_packet(stdin, 1024);
   test.packet_catch();
   test.fd_listen_close();
+
+  test.show_status();
+  //test.send_packet(stdin, 1024);
 }
 
 

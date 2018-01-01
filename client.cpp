@@ -9,6 +9,7 @@
 # include "entry.h"
 # include <iostream>
 # include <map>
+# include <list>
 # include <boost/algorithm/string.hpp> 
 
 # define MAXLINE 1024
@@ -59,13 +60,16 @@ class client_core
     char* loginWrap();
     char* sendMsg();
     char* logoutWrap();
+
+    //Assembled Functions:
+    int Login();
 };
 
 client_core::client_core(void)
 {
   this->MynetAddr = "101.6.161.78";
   this->servInetAddr = "101.6.161.78";
-  this->userId = 255; //I know
+  this->userId = 0; //I know
   this->name = "chn";
   // add friend list:
   this->friend_list["otc"] = 100; //only using one friend.
@@ -115,7 +119,6 @@ int client_core::send_packet(char* this_info)
     exit(0);
   }
   // close the target socket id
-  printf("finish sending! \n");
   this->fd_close();
   return 0;
 };
@@ -140,7 +143,6 @@ int client_core::fd_listen()
 
   // open listening structure
   listen(this->listenfd, 1024);
-  printf("Begin listening.\n");
 }
 
 int client_core::fd_listen_close()
@@ -168,9 +170,33 @@ int client_core::packet_catch()
   this->recvline[n] = '\0';
   entry* Entry = (entry*) this->recvline;
   
+  int this_etype = Entry->EntryHead.etype;
+  if(this_etype == 1)
+  {
   cout<<"msg from:"<< this->iv_friend_list[Entry->EntryHead.userId]<<endl;
   printf("%s", Entry->data);
   close(connfd);
+  }
+  else if (this_etype == 4)
+  {
+   // printf("Ack\n");
+  }
+  else if(this_etype == 5)
+  {
+   // printf("Nck\n");
+    return -1;
+  }
+  else if(this_etype == 6)
+  {
+    cout<<"msg from:"<< this->iv_friend_list[Entry->EntryHead.userId]<<endl;
+    printf("%s", Entry->data);
+    return 1;
+  }
+  else
+  {
+    printf("No such etype.\n");
+    return -1;
+  }
   return 0;
 }
 
@@ -185,9 +211,8 @@ char* client_core::loginWrap()
   int myid;
   int mykw;
   fgets(id, 1024, stdin);
-  //int ID = (int)id;
-  //printf("%d\n", atoi(id));
   myid = atoi(id);
+  this->userId = myid;
   printf("Your Keyword:\n");
   fgets(kw, 1024, stdin);
   mykw = atoi(kw);
@@ -209,10 +234,8 @@ char* client_core::sendMsg()
   string s = string(name);
   trim(s);
   int toWhom = this->friend_list[s];
-  printf("Id is %d\n", toWhom);
   printf("write what you want to say:\n");
   fgets(this->sendline, 1024, stdin);
-  printf("%s", this->sendline);
   entry Entry = wrap_info(this->sendline, this->userId, 1);
   Entry.EntryHead.towhom = toWhom;
   memset(this->content, '0', 164);
@@ -229,26 +252,41 @@ char* client_core::logoutWrap()
   return this->content;
 }
 
+int client_core::Login()
+{
+  int flag = -1;
+  while(flag == -1)
+  {
+    char* login_data = this->loginWrap();
+    this->send_packet(login_data); 
+    flag = this->packet_catch();
+  }
+  while(flag == 1)
+  {
+    // 1 means keep listening
+    flag = this->packet_catch();
+  }
+}
+
 int main(int argc, char **argv)
 {
   client_core test;
-  //login first:
-  char* login_data = test.loginWrap();
-  test.send_packet(login_data);
-
+  test.fd_listen();
   
+  test.Login();
+  //login first:
   char* msg_data = test.sendMsg();
   test.send_packet(msg_data);
   
   // listen to the response:
-  test.fd_listen();
-  test.packet_catch();
-  test.fd_listen_close();
+  //test.packet_catch();
   
   //logout:
   char* logout_data = test.logoutWrap();
   test.send_packet(logout_data);
   
+  test.fd_listen_close();
+  return 0;
 }
 
 

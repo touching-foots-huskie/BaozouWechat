@@ -10,9 +10,12 @@
 # include "entry.h"
 # include <iostream>
 # include <fstream>
+# include <list>
 # define MAXLINE 1024
+# define BUFFSIZE 164
 
 using namespace std;
+
 
 //Useful funcitons:
 map<int, int> read_data()
@@ -53,10 +56,13 @@ class server_core
 
     // save buffer:
     char recvline[MAXLINE], sendline[MAXLINE];
-
+    char content[BUFFSIZE];
     //map: userId->Ip:
     map<int, char*> userIp;
     map<int, int> IdKey;
+
+    //mid storage:
+    map<int, list<char*> > midSave;
     // for sending
     int fd_connect(char* claddr);
     int send_packet(char* this_info, char* claddr);
@@ -142,7 +148,6 @@ int server_core::fd_listen()
 
   // open listening structure
   listen(this->listenfd, 1024);
-  printf("Begin listening.\n");
 }
 
 int server_core::fd_listen_close()
@@ -183,7 +188,7 @@ int server_core::packet_catch()
   }
   else if(Entry->EntryHead.etype == 2)
   {
-    printf("recieved logout\n");
+    this->logout_process(Entry);
   }
   else
   {
@@ -195,7 +200,7 @@ int server_core::packet_catch()
 
 void server_core::show_status()
 {
-  printf("I am going to show the status of users.\n");
+  printf("IP status.\n");
   map<int, char*>::iterator iter;
   for(iter=this->userIp.begin(); iter!=this->userIp.end(); iter++)
   {
@@ -207,41 +212,79 @@ void server_core::show_status()
 int server_core::login_process(entry* Entry)
 {
   // this function is used to process the login function:
-  // response: Login sucess
-  printf("recieved login\n"); 
   //judge first
-  if(this->IdKey[Entry->EntryHead.Ad1] == Entry->EntryHead.Ad2)
+  bool Find_status = (this->IdKey.find(Entry->EntryHead.Ad1) != this->IdKey.end());
+  bool wl_status = (this->midSave.find(Entry->EntryHead.Ad1) != this->midSave.end());
+
+  if(Find_status && (this->IdKey[Entry->EntryHead.Ad1] == Entry->EntryHead.Ad2))
   {
-    printf("your key is right!\n");
+    printf("Successfully log in!\n");
+    //return an etype 4: means ack.
+    Entry->EntryHead.etype = 4;
+    memset(this->content, '0', 164);
+    memcpy(this->content, this->recvline, 164);
+    // if your key are right: I will send the wl data:
+    if(wl_status)
+    {
+      list<char*>::iterator iter;
+      for(iter=this->midSave[Entry->EntryHead.Ad1].begin(); iter!=this->midSave[Entry->EntryHead.Ad1].end(); iter++)
+      {
+        this->send_packet(*iter,Entry->data);
+      }
+    }
+    // finally send
+    this->send_packet(this->content, Entry->data);
   }
   else
   {
-    printf("your key is wrong!\n");
-    return 0; //stop early
+    printf("Log in failure!\n");
+    //return an etype 5: means nck:
+    Entry->EntryHead.etype = 5;
+    memset(this->content, '0', 164);
+    memcpy(this->content, this->recvline, 164);
+    this->send_packet(this->content, Entry->data);
+    entry* test = (entry*) this->content;
+    printf("%d\n", test->EntryHead.etype);
+    return -1; //stop early
   }
 
   this->userIp[Entry->EntryHead.userId] = (char*) malloc(sizeof(Entry->data)); 
   memcpy(this->userIp[Entry->EntryHead.userId], Entry->data, sizeof(Entry->data));
-  printf("content is %s\n", Entry->data);
- }
+}
 
 int server_core::msg_process(entry* Entry)
 {
-  // this function is used to process the msg:
-  printf("recieved msg!\n");
-  printf("It is to %d|%s\n", Entry->EntryHead.towhom, this->userIp[Entry->EntryHead.towhom]);
-  // transsend:
-  this->send_packet(this->recvline, this->userIp[Entry->EntryHead.towhom]);
+
+  bool ol_status = (this->userIp.find(Entry->EntryHead.towhom) != this->userIp.end());
+  bool wl_status = (this->midSave.find(Entry->EntryHead.towhom) != this->midSave.end());
+  if(ol_status)
+  {
+    // transsend:
+    this->send_packet(this->recvline, this->userIp[Entry->EntryHead.towhom]);
+  }
+  else
+  {
+    //6 means keep listenning
+    printf("The user is offline.\n");
+    Entry->EntryHead.etype = 6;
+    char* content_place = (char*) malloc(BUFFSIZE);
+    memcpy(content_place, this->recvline, BUFFSIZE);
+    if(wl_status)
+    {
+      list<char*> w2send;
+      this->midSave[Entry->EntryHead.towhom] = w2send;
+    }
+    this->midSave[Entry->EntryHead.towhom].push_back(content_place);
+  }
 }
 
 int server_core::logout_process(entry* Entry)
 {
   // this function is used to process the login function:
   // response: Login sucess
-  printf("recieved logout\n"); 
+  printf("%d logout\n", Entry->EntryHead.userId); 
   int uId = Entry->EntryHead.userId;
-  this->userIp.erase(uId);
-  printf("%d has logged out\n", uId);
+  this->userIp.erase(this->userIp.find(uId));
 }
 
 int main(int argc, char **argv)
@@ -250,9 +293,12 @@ int main(int argc, char **argv)
   server_core test;
 
   test.fd_listen();
-  test.packet_catch();
-  test.packet_catch();
-  test.packet_catch();
+  
+  while(1)
+  {
+    test.packet_catch();
+  }
+
   test.fd_listen_close();
 
   test.show_status();
